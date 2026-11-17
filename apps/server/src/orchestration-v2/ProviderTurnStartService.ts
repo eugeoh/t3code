@@ -856,6 +856,23 @@ export const layer: Layer.Layer<
         session.driver === "claudeAgent" ||
         session.providerSession.capabilities.turns.supportsNativeGoals === true;
       const goalCommand = goalDriver && parseGoalCommand(providerMessage) !== null;
+      const orchestratorBrief = goalCommand
+        ? ""
+        : yield* serverSettings.getSettings.pipe(
+            Effect.map((settings) =>
+              orchestratorBriefFor({
+                thread: projection.thread,
+                settings,
+                prompt: userText,
+                verbatim: false,
+              }),
+            ),
+            Effect.catch((cause) =>
+              Effect.logWarning("Could not resolve orchestrator mode; sending no brief.", {
+                cause,
+              }).pipe(Effect.as("")),
+            ),
+          );
       // The provider turn marks cancellation work delivered; restart continuations use their own text or resume natively.
       const noteContinuation = isRestartNoteContinuation(
         run,
@@ -1747,21 +1764,8 @@ export const layer: Layer.Layer<
             sideChatHandoff === undefined || compact || goalCommand
               ? ""
               : sideChatHandoff.summaryText;
-          const coordinatorBrief = yield* serverSettings.getSettings.pipe(
-            Effect.map((settings) =>
-              orchestratorBriefFor({
-                thread: projection.thread,
-                settings,
-                prompt: userText,
-                verbatim: compact || goalCommand || turnInput.resume === true,
-              }),
-            ),
-            Effect.catch((cause) =>
-              Effect.logWarning("Could not resolve orchestrator mode; sending no brief.", {
-                cause,
-              }).pipe(Effect.as("")),
-            ),
-          );
+          const coordinatorBrief =
+            compact || goalCommand || turnInput.resume === true ? "" : orchestratorBrief;
           const context = [coordinatorBrief, delivery.context, sideChatContext, restartNote]
             .filter((part) => part !== "")
             .join("\n\n");
@@ -1837,6 +1841,7 @@ export const layer: Layer.Layer<
         ),
       );
       const deliverySession =
+        orchestratorBrief === "" &&
         effectiveHandoffs.length === 0 &&
         retryHandoff.length === 0 &&
         sideChatHandoff === undefined &&

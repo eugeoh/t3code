@@ -70,6 +70,7 @@ import * as ThreadCommandExecutor from "./ThreadCommandExecutor.ts";
 import * as ThreadManagementService from "./ThreadManagementService.ts";
 import * as ThreadTitleRegenerationService from "./ThreadTitleRegenerationService.ts";
 import * as IdAllocator from "@t3tools/provider-core/server/IdAllocator";
+import { T3_CODE_COORDINATOR_INSTRUCTIONS } from "@t3tools/provider-core/server/orchestrationInstructions";
 import { CodexProviderCapabilitiesV2 } from "./Adapters/CodexAdapterV2.ts";
 import * as ProjectionStore from "./ProjectionStore.ts";
 import * as ProviderAdapter from "@t3tools/provider-core/server/ProviderAdapter";
@@ -390,6 +391,9 @@ it.each([
 
 function makeLocalCommandHarness(input: {
   readonly text: string;
+  /** Opens a session that accepts an ordinary prompt turn. */
+  readonly plainTurn?: boolean;
+  readonly delegated?: boolean;
   readonly manualContinuation?: boolean;
   readonly nativeResumeUnsupported?: boolean;
   readonly steeringRestart?: boolean;
@@ -510,7 +514,13 @@ function makeLocalCommandHarness(input: {
       projectId: ProjectId.make("project-native-account-command"),
       branch: input.worktreePath === undefined ? null : "feature/restore",
       worktreePath: input.worktreePath ?? null,
-      lineage: { parentThreadId: null, relationshipToParent: null, rootThreadId: threadId },
+      lineage: input.delegated
+        ? {
+            parentThreadId: ThreadId.make("orchestrator-parent"),
+            relationshipToParent: "subagent",
+            rootThreadId: ThreadId.make("orchestrator-parent"),
+          }
+        : { parentThreadId: null, relationshipToParent: null, rootThreadId: threadId },
     } as OrchestrationV2ThreadProjection["thread"],
     runs: [
       ...(input.previousNativeSession
@@ -1086,41 +1096,47 @@ function makeLocalCommandHarness(input: {
   const open = vi.fn(() =>
     input.sideChat !== undefined
       ? Effect.succeed(sideChatSession as never)
-      : input.interruptOpen === true
-        ? Effect.interrupt
-        : "historyReadFailureAfterFallback" in input || "resumeFailure" in input
-          ? Effect.succeed(resumeFallbackSession as never)
-          : "ensureThreadFailure" in input
-            ? Effect.succeed({ driver: providerThread.driver, ensureThread } as never)
-            : "openFailure" in input
-              ? Effect.sync(() => {
-                  if (input.interruptRunBeforeOpenFailure === true) interruptRun();
-                }).pipe(
-                  Effect.andThen(
-                    Effect.fail(
-                      new ProviderSessionManager.ProviderSessionOpenError({
-                        instanceId: newInstanceId,
-                        providerSessionId,
-                        cause: input.openFailure,
-                      }),
+      : input.plainTurn === true
+        ? Effect.succeed({
+            ...sideChatSession,
+            ensureThread: () => Effect.succeed(providerThread),
+            resumeThread: () => Effect.succeed(providerThread),
+          } as never)
+        : input.interruptOpen === true
+          ? Effect.interrupt
+          : "historyReadFailureAfterFallback" in input || "resumeFailure" in input
+            ? Effect.succeed(resumeFallbackSession as never)
+            : "ensureThreadFailure" in input
+              ? Effect.succeed({ driver: providerThread.driver, ensureThread } as never)
+              : "openFailure" in input
+                ? Effect.sync(() => {
+                    if (input.interruptRunBeforeOpenFailure === true) interruptRun();
+                  }).pipe(
+                    Effect.andThen(
+                      Effect.fail(
+                        new ProviderSessionManager.ProviderSessionOpenError({
+                          instanceId: newInstanceId,
+                          providerSessionId,
+                          cause: input.openFailure,
+                        }),
+                      ),
                     ),
-                  ),
-                )
-              : input.failReadsAfterRunning === true || input.previousTurn !== undefined
-                ? Effect.succeed({
-                    driver: providerThread.driver,
-                    providerSession,
-                    ensureThread: () => Effect.succeed(providerThread),
-                    resumeThread: () => Effect.succeed(projection.providerThreads[0]),
-                  } as never)
-                : Effect.die("A local command must not open a native session."),
+                  )
+                : input.failReadsAfterRunning === true || input.previousTurn !== undefined
+                  ? Effect.succeed({
+                      driver: providerThread.driver,
+                      providerSession,
+                      ensureThread: () => Effect.succeed(providerThread),
+                      resumeThread: () => Effect.succeed(projection.providerThreads[0]),
+                    } as never)
+                  : Effect.die("A local command must not open a native session."),
   );
   const startRootRun = vi.fn<
     (
       input: RunExecutionService.RunExecutionServiceV2StartRootRunInput,
     ) => Effect.Effect<void, RunExecutionService.RunExecutionServiceV2Error>
   >((runInput) =>
-    input.sideChat !== undefined
+    input.sideChat !== undefined || input.plainTurn === true
       ? (runInput.resume
           ? runInput.session.resumeTurn!({
               ...runInput,
@@ -2095,6 +2111,24 @@ effectIt.effect(
       expect(harness.projection().runs.at(-1)?.status).toBe("running");
       expect(harness.startRootRun).toHaveBeenCalledOnce();
     }),
+);
+
+effectIt.effect("briefs a top-level orchestrator turn but not a delegated child", () =>
+  Effect.gen(function* () {
+    const topLevel = makeLocalCommandHarness({ text: "Add team invitations", plainTurn: true });
+    yield* topLevel.start;
+    expect(topLevel.startTurn.mock.calls[0]?.[0].message.text).toBe(
+      withInlineContext(T3_CODE_COORDINATOR_INSTRUCTIONS, "Add team invitations"),
+    );
+
+    const child = makeLocalCommandHarness({
+      text: "Add team invitations",
+      plainTurn: true,
+      delegated: true,
+    });
+    yield* child.start;
+    expect(child.startTurn.mock.calls[0]?.[0].message.text).toBe("Add team invitations");
+  }),
 );
 
 effectIt.effect("sends new steering text when restarting a manual continuation", () =>
