@@ -197,6 +197,17 @@ itself, or **Skip** to leave them for a setup script. It resolves in the same or
 workspace default: a `"worktreeSubmodules"` value in the `t3.json` of the branch being checked out
 applies when the project and environment are both on **Inherit**.
 
+## Orchestrator mode
+
+**Orchestrator mode** in **Settings → Threads** is on by default. Agents in new and existing
+threads then plan first, check which providers and models are available, pick one for each task,
+and hand the work to child threads with `delegate_task`, usually in their own worktrees. Quick
+questions and one-line changes are still answered directly. Child threads and side chats never
+get these instructions, so workers do their task instead of delegating again.
+
+Select a project to turn it off or on for that project only. The change applies from the
+thread's next message.
+
 ## Worktree location
 
 New worktrees go in the `worktrees` folder of the T3 home directory. To put them somewhere else,

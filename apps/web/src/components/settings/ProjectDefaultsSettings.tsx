@@ -27,6 +27,7 @@ import { toastManager } from "../ui/toast";
 import { Switch } from "../ui/switch";
 import { resolveDefaultModelSettingsPresentation } from "./ProjectDefaultsSettings.logic";
 import type { ProjectSettingsCategory } from "./ProjectSettingsPanel";
+import { ScopedSwitch } from "./ScopedSwitch";
 import { searchableSetting } from "./settingsSearch";
 import { useSettingsScope } from "./SettingsScopeContext";
 import {
@@ -409,6 +410,34 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
                   })}
                 </SelectPopup>
               </Select>
+            }
+          />
+          <SettingsRow
+            serverScoped
+            settingKeys={["orchestratorMode"]}
+            {...searchableSetting("orchestrator-mode")}
+            description={
+              isProjectScope
+                ? "Agents in this project plan first, pick models, and delegate work to child threads."
+                : "Agents plan first, pick models, and delegate work to child threads. Projects can override it."
+            }
+            resetAction={
+              settings.orchestratorMode !== DEFAULT_SERVER_SETTINGS.orchestratorMode ? (
+                <SettingResetButton
+                  label="orchestrator mode"
+                  onClick={() =>
+                    updateSettings({ orchestratorMode: DEFAULT_SERVER_SETTINGS.orchestratorMode })
+                  }
+                />
+              ) : null
+            }
+            control={
+              <ScopedSwitch
+                settingKeys={["orchestratorMode"]}
+                aria-label="Orchestrator mode"
+                checked={settings.orchestratorMode}
+                onCheckedChange={(enabled) => updateSettings({ orchestratorMode: enabled })}
+              />
             }
           />
           {workspaceRow}

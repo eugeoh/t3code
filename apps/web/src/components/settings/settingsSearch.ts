@@ -299,6 +299,13 @@ export const SETTINGS_SEARCH_ITEMS = [
     environmentOnly: true,
   },
   {
+    id: "orchestrator-mode",
+    title: "Orchestrator mode",
+    to: "/settings/threads",
+    scope: "project-defaults",
+    searchTerms: ["coordinator plan delegate subagents model routing orchestrate new threads"],
+  },
+  {
     id: "default-permissions",
     title: "Permissions",
     to: "/settings/threads",

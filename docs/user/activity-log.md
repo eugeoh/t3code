@@ -18,6 +18,14 @@ it finished, and an interrupt or cancellation request does not mean the thread s
 details are unavailable, summaries use a broader description instead of guessing how many threads
 were affected.
 
+## Tool calls panel
+
+To see every tool call in a thread in one place, open the right panel's **+** menu and choose
+**Tool calls** (shortcut `K` in the menu). Calls are listed in order and grouped by turn, with
+their status and time. Running and failed calls are counted in each turn's heading. Click a call
+to see its input, output and exit code, or use **Expand all**. Calls run by child threads appear in
+those threads.
+
 ## Hide tool calls
 
 **Tool calls in chat** in **Settings → Chat** (web and desktop) or **Settings → Appearance**

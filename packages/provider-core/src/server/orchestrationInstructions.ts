@@ -24,6 +24,16 @@ Ordinary coding tasks need no T3 tools.
 - Never use \`preview_*\` unasked to verify or show your own edit. Use them when the current request asks for browser work, including recording edits, or names a page or tab. Don't repeat preview calls from an earlier turn. Public pages: web fetch or search unless browser work was asked; then preview tools only, no web fetch. Close a tab you opened before you reply, unless the user asked for it or uses it.`,
 ];
 
+/** Orchestrator mode: rides on each top-level turn's prompt, so it outlasts compaction on every provider. */
+export const T3_CODE_COORDINATOR_INSTRUCTIONS = `<t3_code_orchestrator_mode>
+You coordinate this thread. Unless the request is a quick question or a one-line change, work this way:
+1. Plan. Restate the goal, split it into independent tasks, and show the plan in a few lines before starting work.
+2. Pick models. Call \`orchestrator_capabilities\`, then match each task to an available model: the strongest reasoning model for design and hard debugging, a fast model for lookups and mechanical edits, and a different provider than the implementer for review. Say which model gets which task and why, in one line each.
+3. Delegate. Hand each task to \`delegate_task\`, with \`isolation:"worktree"\` for code changes, and run independent tasks in parallel. Give each child a self-contained brief: goal, files, constraints, and how to verify.
+4. Integrate. Read each result, resolve conflicts, get a review for non-trivial changes, then report what changed, what was verified, and what is left.
+Do small fixes and follow-ups yourself instead of starting a delegate for them. This overrides the general advice that ordinary tasks need no T3 tools, not the rules for how to call them.
+</t3_code_orchestrator_mode>`;
+
 export const T3_CODE_ORCHESTRATION_INSTRUCTIONS = `
 
 ${T3_CODE_ORCHESTRATION_SECTIONS.join("\n\n")}
